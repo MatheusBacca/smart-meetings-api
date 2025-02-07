@@ -1,15 +1,7 @@
-from fastapi import FastAPI
-
 import database.models as models
 from database.database import engine
-from routes.RoomsWS import rooms_router
-from routes.UsersWS import users_router
-from routes.ReservationsWS import reservations_router
+from util.utils import create_app
 
-app = FastAPI()
-
-app.include_router(rooms_router, tags=['Rooms'])
-app.include_router(users_router, tags=['Users'])
-app.include_router(reservations_router, tags=['Reservarions'])
+app = create_app()
 
 models.Base.metadata.create_all(bind=engine)
