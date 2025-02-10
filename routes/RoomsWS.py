@@ -1,11 +1,12 @@
 from typing import Optional
-from fastapi import HTTPException, APIRouter, Query
+from fastapi import Depends, HTTPException, APIRouter, Query
 from sqlalchemy import Date, cast
 import logging
 from database.database import db_dependency
-from database.models import Rooms, Reservations
+from database.models import Rooms, Reservations, Users
 from starlette import status
 from datetime import date, datetime
+from util.auth import current_user_dependency
 from util.constants import ws_responses
 
 from models.RoomsMO import RoomsPostRequest
@@ -140,8 +141,11 @@ async def check_room_reservations(
 async def create_room(
     db: db_dependency,
     room_request: RoomsPostRequest,
+    current_user: Users = current_user_dependency,
 ):
-    room_model = Rooms(**room_request.model_dump())
+    authenticated_user = db.query(Users).filter(Users.name == current_user).first()
+
+    room_model = Rooms(**room_request.model_dump(), creator_id=authenticated_user.id)
     db.add(room_model)
     db.commit()
     db.refresh(room_model)

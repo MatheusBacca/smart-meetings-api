@@ -5,7 +5,7 @@ from starlette import status
 
 from database.models import Users
 from database.database import db_dependency
-from models.UsersMO import UserRequest
+from models.UsersMO import UserRequest, hash_password
 from util.constants import ws_responses
 from util.logger import setup_logger
 
@@ -44,15 +44,13 @@ async def list_users(
     }
 
 
-@users_router.post(
-    "", status_code=status.HTTP_201_CREATED, responses=ws_responses["users_post"]
-)
+@users_router.post("", status_code=status.HTTP_201_CREATED, responses={})
 async def create_user(db: db_dependency, user_request: UserRequest):
-    user_exisists: Optional[Users] = (
+    user_exists: Optional[Users] = (
         db.query(Users).filter(Users.name == user_request.name).first()
     )
 
-    if user_exisists:
+    if user_exists:
         logger.info(
             f"Conflict: User name '{user_request.name}' already exists. Conflict exception raised."
         )
@@ -61,20 +59,24 @@ async def create_user(db: db_dependency, user_request: UserRequest):
             detail=f"User with name '{user_request.name}' already exists.",
         )
 
-    email_exisists: Optional[Users] = (
+    email_exists: Optional[Users] = (
         db.query(Users).filter(Users.email == user_request.email).first()
     )
 
-    if email_exisists:
+    if email_exists:
         logger.info(
-            f"Conflict: User email '{user_request.email} already exists. Conflict exception raised."
+            f"Conflict: User email '{user_request.email}' already exists. Conflict exception raised."
         )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Email '{user_request.email}' is already registered for another user.",
         )
 
-    user_model = Users(**user_request.model_dump())
+    hashed_password = hash_password(user_request.password)
+
+    user_model = Users(
+        name=user_request.name, email=user_request.email, password=hashed_password
+    )
     db.add(user_model)
     db.commit()
     db.refresh(user_model)

@@ -9,7 +9,6 @@ class RoomsPostRequest(BaseModel):
     capacity: int = Field(
         ..., gt=2, description="Capacidade mínima da sala (deve ser maior que 2)"
     )
-    creator_id: int = Field(..., gt=0, description="ID do criador")
 
     class Config:
-        orm_mode = True
+        from_attributes = True

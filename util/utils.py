@@ -1,5 +1,6 @@
 from logging import Logger
 from fastapi import FastAPI, Request
+from routes.AuthWS import auth_router
 from routes.RootWS import root_router
 from routes.RoomsWS import rooms_router
 from routes.UsersWS import users_router
@@ -24,6 +25,7 @@ def create_app():
         return response
 
     app.include_router(root_router, tags=["Root"])
+    app.include_router(auth_router, tags=["Auth"])
     app.include_router(rooms_router, tags=["Rooms"])
     app.include_router(users_router, tags=["Users"])
     app.include_router(reservations_router, tags=["Reservations"])

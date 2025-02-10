@@ -9,6 +9,7 @@ from database.models import Reservations, Rooms, Users
 from models.ReservationsMO import ReservationRequest
 from util.constants import ws_responses
 from util.logger import setup_logger
+from util.auth import current_user_dependency
 
 reservations_router = APIRouter(prefix="/reservations")
 logger: logging.Logger = setup_logger(__name__)
@@ -58,8 +59,12 @@ async def list_reservations(
     "", status_code=status.HTTP_201_CREATED, responses=ws_responses["reservations_post"]
 )
 async def create_reservations(
-    db: db_dependency, reservation_request: ReservationRequest
+    db: db_dependency,
+    reservation_request: ReservationRequest,
+    current_user: Users = current_user_dependency,
 ):
+    authenticated_user = db.query(Users).filter(Users.name == current_user).first()
+
     if reservation_request.start_time < datetime.now():
         logger.info("Start time is before current time. Bad request exception raised.")
         raise HTTPException(
@@ -128,25 +133,9 @@ async def create_reservations(
             },
         )
 
-    user_founded = (
-        db.query(Users)
-        .filter(Users.name.ilike(f"%{reservation_request.user_name}%"))
-        .first()
-    )
-    if not user_founded:
-        logger.info(
-            f"The user with name {reservation_request.user_name} was not found. Bad request exception raised."
-        )
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"No user named '{reservation_request.user_name}' found.",
-        )
-
     reservation_dict = reservation_request.model_dump()
-    reservation_dict.pop("user_name")
-    reservation_dict.update({"user_id": user_founded.id})
 
-    reservation_model = Reservations(**reservation_dict)
+    reservation_model = Reservations(**reservation_dict, user_id=authenticated_user.id)
     db.add(reservation_model)
     db.commit()
     db.refresh(reservation_model)
@@ -168,10 +157,22 @@ async def create_reservations(
     status_code=status.HTTP_204_NO_CONTENT,
     responses=ws_responses["reservations_delete"],
 )
-async def delete_reservation(db: db_dependency, id: int):
+async def delete_reservation(
+    db: db_dependency, id: int, current_user: Users = current_user_dependency
+):
+    authenticated_user = db.query(Users).filter(Users.name == current_user).first()
     reservation_to_delete = db.query(Reservations).filter(Reservations.id == id).first()
 
     if reservation_to_delete:
+        if reservation_to_delete.user_id != authenticated_user.id:
+            logger.info(
+                f"User {authenticated_user.id} is not authorized to delete reservation {id}. Forbidden exception raised."
+            )
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You are not authorized to delete this reservation.",
+            )
+
         db.delete(reservation_to_delete)
         db.commit()
 
