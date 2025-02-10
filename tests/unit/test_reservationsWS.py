@@ -5,7 +5,7 @@ from unittest.mock import MagicMock
 from fastapi import status
 from database.database import get_db
 from util.utils import create_app
-from database.models import Reservations, Rooms, Users
+from database.models import Reservations, Users
 
 app = create_app()
 client = TestClient(app)

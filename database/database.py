@@ -21,7 +21,6 @@ SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL
 
 engine: Engine = create_engine(
     SQLALCHEMY_DATABASE_URL,
-    echo=True,
     pool_pre_ping=True,
 )
 

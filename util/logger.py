@@ -2,13 +2,18 @@ import logging
 from logging.handlers import RotatingFileHandler
 import os
 
+from configobj import ConfigObj
+
+
+config = ConfigObj("config.cfg")
+
 
 def setup_logger(
     name=__name__,
-    log_file="smart_meetings.log",
+    log_file=config["LOGS"]["FILE_NAME"],
     level=logging.DEBUG,
-    max_bytes=10 * 1024 * 1024,
-    backup_count=5,
+    max_bytes=10 * 1024 * 1024,  # 10 MB or 10.485.760 bytes
+    backup_count=config["LOGS"]["BACKUP_COUNT"],
 ):
     """
     Configure a reusable logger.
@@ -29,7 +34,7 @@ def setup_logger(
     logger.propagate = False
 
     formatter = logging.Formatter(
-        '%(asctime)s [%(levelname)s] [%(name)s:%(funcName)s:%(lineno)d] %(message)s'
+        "%(asctime)s [%(levelname)s] [%(name)s:%(funcName)s:%(lineno)d] %(message)s"
     )
 
     console_handler = logging.StreamHandler()
