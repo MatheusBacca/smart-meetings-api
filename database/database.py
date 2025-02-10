@@ -4,12 +4,18 @@ from sqlalchemy.orm import sessionmaker
 from sqlalchemy.ext.declarative import declarative_base
 from typing import Annotated
 from sqlalchemy.orm import Session
+from configobj import ConfigObj
 
-MYSQL_USER = "root"
-MYSQL_PASSWORD = "root"
-MYSQL_HOST = "localhost"
-MYSQL_PORT = "3306"
-MYSQL_DATABASE = "roomsDatabase"
+config = ConfigObj("config.cfg")
+
+ENVIRONMENT = config["SERVICE"].get("MODE", "production")
+DATABASE_SECTION = "DATABASE" if ENVIRONMENT == "production" else "TESTS"
+
+MYSQL_USER = config[DATABASE_SECTION]["MYSQL_USER"]
+MYSQL_PASSWORD = config[DATABASE_SECTION]["MYSQL_PASSWORD"]
+MYSQL_HOST = config[DATABASE_SECTION]["MYSQL_HOST"]
+MYSQL_PORT = config[DATABASE_SECTION]["MYSQL_PORT"]
+MYSQL_DATABASE = config[DATABASE_SECTION]["MYSQL_DATABASE"]
 
 SQLALCHEMY_DATABASE_URL = f"mysql+pymysql://{MYSQL_USER}:{MYSQL_PASSWORD}@{MYSQL_HOST}:{MYSQL_PORT}/{MYSQL_DATABASE}"
 
