@@ -5,6 +5,7 @@ from routes.RoomsWS import rooms_router
 from routes.UsersWS import users_router
 from routes.ReservationsWS import reservations_router
 from util.logger import setup_logger
+from util.middlewares import PaginationMiddleware
 
 
 def create_app():
@@ -26,6 +27,8 @@ def create_app():
     app.include_router(rooms_router, tags=["Rooms"])
     app.include_router(users_router, tags=["Users"])
     app.include_router(reservations_router, tags=["Reservations"])
+
+    app.add_middleware(PaginationMiddleware)
 
     logger: Logger = setup_logger(__name__)
 

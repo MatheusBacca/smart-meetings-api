@@ -28,6 +28,8 @@ async def list_rooms(
     created_at: Optional[date] = Query(
         None, description="Filter by rooms created on a specific date"
     ),
+    page: int = Query(1, ge=1, description="Page number for pagination"),
+    limit: int = Query(10, ge=1, le=100, description="Number of items per page"),
 ):
     query = db.query(Rooms)
 
@@ -44,7 +46,16 @@ async def list_rooms(
     if created_at:
         query = query.filter(cast(Rooms.created_at, Date) == created_at)
 
-    return {"rooms": query.all()}
+    total_items = query.count()
+    rooms = query.offset((page - 1) * limit).limit(limit).all()
+
+    return {
+        "page": page,
+        "limit": limit,
+        "total_items": total_items,
+        "total_pages": (total_items + limit - 1) // limit,
+        "rooms": rooms,
+    }
 
 
 @rooms_router.get(
@@ -76,14 +87,12 @@ async def check_room_availability(
         db.query(Reservations)
         .filter(
             Reservations.room_id == id,
-            (Reservations.start_time >= end) & (Reservations.end_time <= start),
+            (Reservations.start_time < end) & (Reservations.end_time > start),
         )
         .first()
     )
 
-    is_available: bool = True
-    if overlapping_reservation is not None:
-        is_available: bool = False
+    is_available: bool = overlapping_reservation is None
 
     return {"room_id": id, "availability": is_available}
 
@@ -92,7 +101,11 @@ async def check_room_availability(
     "/{id}/reservations", responses=ws_responses["rooms_get_reservations"]
 )
 async def check_room_reservations(
-    db: db_dependency, id: int, date: Optional[date] = None
+    db: db_dependency,
+    id: int,
+    date: Optional[date] = None,
+    page: int = Query(1, ge=1),
+    limit: int = Query(10, ge=1, le=100),
 ):
     room = db.query(Rooms).filter(Rooms.id == id).first()
     if not room:
@@ -102,14 +115,23 @@ async def check_room_reservations(
             detail=f"Room with id '{id}' not found.",
         )
 
-    room_reservations = db.query(Reservations).filter(Reservations.room_id == id)
+    room_reservations_query = db.query(Reservations).filter(Reservations.room_id == id)
 
     if date is not None:
-        room_reservations = room_reservations.filter(
+        room_reservations_query = room_reservations_query.filter(
             cast(Reservations.start_time, Date) == date
         )
 
-    return {"reservations": room_reservations.all()}
+    total_items = room_reservations_query.count()
+    reservations = room_reservations_query.offset((page - 1) * limit).limit(limit).all()
+
+    return {
+        "page": page,
+        "limit": limit,
+        "total_items": total_items,
+        "total_pages": (total_items + limit - 1) // limit,
+        "reservations": reservations,
+    }
 
 
 @rooms_router.post(

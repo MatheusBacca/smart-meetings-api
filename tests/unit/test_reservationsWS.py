@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 import pytest
 from fastapi.testclient import TestClient
 from unittest.mock import MagicMock
@@ -42,12 +42,20 @@ def test_list_reservations_no_filters(mock_db: MagicMock):
             end_time=datetime(2025, 2, 11, 11, 0),
         ),
     ]
-    mock_db.query.return_value.all.return_value = mock_reservations
+    mock_query = mock_db.query.return_value
+    mock_query.count.return_value = len(mock_reservations)
+    mock_query.offset.return_value.limit.return_value.all.return_value = (
+        mock_reservations
+    )
 
-    response = client.get("/reservations/")
+    response = client.get("/reservations")
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {
+        "page": 1,
+        "limit": 10,
+        "total_items": 2,
+        "total_pages": 1,
         "reservations": [
             {
                 "id": 1,
@@ -63,7 +71,64 @@ def test_list_reservations_no_filters(mock_db: MagicMock):
                 "start_time": "2025-02-11T09:00:00",
                 "end_time": "2025-02-11T11:00:00",
             },
-        ]
+        ],
+    }
+
+
+def test_list_reservations_with_pagination(mock_db: MagicMock):
+    mock_reservations = [
+        Reservations(
+            id=1,
+            room_id=101,
+            user_id=1,
+            start_time=datetime(2025, 2, 10, 10, 0),
+            end_time=datetime(2025, 2, 10, 12, 0),
+        ),
+        Reservations(
+            id=2,
+            room_id=102,
+            user_id=2,
+            start_time=datetime(2025, 2, 11, 9, 0),
+            end_time=datetime(2025, 2, 11, 11, 0),
+        ),
+        Reservations(
+            id=3,
+            room_id=103,
+            user_id=3,
+            start_time=datetime(2025, 2, 12, 14, 0),
+            end_time=datetime(2025, 2, 12, 16, 0),
+        ),
+    ]
+    mock_query = mock_db.query.return_value
+    mock_query.count.return_value = len(mock_reservations)
+    mock_query.offset.return_value.limit.return_value.all.return_value = (
+        mock_reservations[:2]
+    )
+
+    response = client.get("/reservations", params={"page": 1, "limit": 2})
+
+    assert response.status_code == status.HTTP_200_OK
+    assert response.json() == {
+        "page": 1,
+        "limit": 2,
+        "total_items": 3,
+        "total_pages": 2,
+        "reservations": [
+            {
+                "id": 1,
+                "room_id": 101,
+                "user_id": 1,
+                "start_time": "2025-02-10T10:00:00",
+                "end_time": "2025-02-10T12:00:00",
+            },
+            {
+                "id": 2,
+                "room_id": 102,
+                "user_id": 2,
+                "start_time": "2025-02-11T09:00:00",
+                "end_time": "2025-02-11T11:00:00",
+            },
+        ],
     }
 
 
@@ -77,12 +142,18 @@ def test_list_reservations_with_date_filter(mock_db: MagicMock):
             end_time=datetime(2025, 2, 10, 12, 0),
         ),
     ]
-    mock_db.query.return_value.filter.return_value.all.return_value = mock_reservations
+    mock_query = mock_db.query.return_value
+    mock_query.filter.return_value.count.return_value = len(mock_reservations)
+    mock_query.filter.return_value.offset.return_value.limit.return_value.all.return_value = mock_reservations
 
-    response = client.get("/reservations/", params={"date": "2025-02-10"})
+    response = client.get("/reservations", params={"date": "2025-02-10"})
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {
+        "page": 1,
+        "limit": 10,
+        "total_items": 1,
+        "total_pages": 1,
         "reservations": [
             {
                 "id": 1,
@@ -91,23 +162,21 @@ def test_list_reservations_with_date_filter(mock_db: MagicMock):
                 "start_time": "2025-02-10T10:00:00",
                 "end_time": "2025-02-10T12:00:00",
             },
-        ]
+        ],
     }
 
 
 def test_create_reservation_start_time_in_past(mock_db: MagicMock):
-    mock_db.query.return_value.filter.return_value.first.return_value = (
-        None  # Nenhuma reserva existente
-    )
+    mock_db.query.return_value.filter.return_value.first.return_value = None
     mock_db.query.return_value.filter.return_value.first.return_value = Users(
         id=1, name="Test User", email="user@test.com"
-    )  # Usuário encontrado
+    )
 
     reservation_request = {
         "room_id": 101,
         "user_name": "Test User",
-        "start_time": "2023-02-10T10:00:00",  # Hora no passado
-        "end_time": "2023-02-10T12:00:00",
+        "start_time": (datetime.now() - timedelta(hours=1)).isoformat(),
+        "end_time": (datetime.now() - timedelta(hours=1, minutes=30)).isoformat(),
     }
 
     response = client.post("/reservations/", json=reservation_request)
@@ -122,19 +191,22 @@ def test_create_reservation_conflict(mock_db: MagicMock):
         id=1, name="Test User", email="user@test.com"
     )
 
+    start_time = datetime.now() + timedelta(hours=1)
+    end_time = datetime.now() + timedelta(hours=1, minutes=30)
+
     mock_db.query.return_value.filter.return_value.first.return_value = Reservations(
         id=1,
         room_id=101,
         user_id=1,
-        start_time=datetime(2025, 2, 10, 9, 0),
-        end_time=datetime(2025, 2, 10, 11, 0),
+        start_time=start_time,
+        end_time=end_time,
     )
 
     reservation_request = {
         "room_id": 101,
         "user_name": "Test User",
-        "start_time": "2025-02-10T10:00:00",
-        "end_time": "2025-02-10T12:00:00",
+        "start_time": start_time.isoformat(),
+        "end_time": end_time.isoformat(),
     }
 
     response = client.post("/reservations", json=reservation_request)

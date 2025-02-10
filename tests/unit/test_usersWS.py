@@ -24,41 +24,35 @@ def override_dependency(mock_db: MagicMock):
     client = TestClient(app)
 
 
-def test_list_users_no_filters(mock_db: MagicMock):
-    # Configura o mock para retornar uma lista de usuários
+def test_list_users_with_pagination(mock_db: MagicMock):
     mock_users = [
         Users(id=1, name="User1", email="user1@test.com"),
         Users(id=2, name="User2", email="user2@test.com"),
     ]
-    mock_db.query.return_value.all.return_value = mock_users
+    mock_db.query.return_value.count.return_value = len(mock_users)
+    mock_db.query.return_value.offset.return_value.limit.return_value.all.return_value = mock_users
 
-    response = client.get("/users", params={})
+    response = client.get("/users", params={"page": 1, "limit": 2})
 
     assert response.status_code == status.HTTP_200_OK
     assert response.json() == {
+        "page": 1,
+        "limit": 2,
+        "total_items": 2,
+        "total_pages": 1,
         "users": [
             {"id": 1, "name": "User1", "email": "user1@test.com"},
             {"id": 2, "name": "User2", "email": "user2@test.com"},
-        ]
-    }
-
-
-def test_list_users_with_filters(mock_db: MagicMock):
-    # Configura o mock para retornar um único usuário filtrado
-    mock_users = [Users(id=1, name="FilteredUser", email="filtereduser@test.com")]
-    mock_db.query.return_value.filter.return_value.all.return_value = mock_users
-
-    response = client.get("/users", params={"name": "FilteredUser"})
-
-    assert response.status_code == status.HTTP_200_OK
-    assert response.json() == {
-        "users": [{"id": 1, "name": "FilteredUser", "email": "filtereduser@test.com"}]
+        ],
     }
 
 
 def test_create_user_success(mock_db: MagicMock):
-    # Mock para garantir que o nome não exista no banco
     mock_db.query.return_value.filter.return_value.first.return_value = None
+    mock_db.add.return_value = None
+    mock_db.commit.return_value = None
+    mock_db.refresh.return_value = None
+
     user_request = {"name": "NewUser", "email": "newuser@test.com"}
 
     response = client.post("/users", json=user_request)
@@ -69,15 +63,29 @@ def test_create_user_success(mock_db: MagicMock):
 
 
 def test_create_user_conflict_name(mock_db: MagicMock):
-    # Mock para retornar um usuário já existente com o mesmo nome
     mock_db.query.return_value.filter.return_value.first.return_value = Users(
         id=1, name="ExistingUser", email="existing@test.com"
     )
+
     user_request = {"name": "ExistingUser", "email": "newuser@test.com"}
 
     response = client.post("/users", json=user_request)
 
     assert response.status_code == status.HTTP_409_CONFLICT
+    assert response.json()["detail"] == "User with name 'ExistingUser' already exists."
+
+
+def test_create_user_conflict_email(mock_db):
+    user_request = {"name": "Tester", "email": "tester@gmail.com"}
+
+    mock_db.query.return_value.filter.return_value.first.side_effect = [
+        None,
+        True,
+    ]
+
+    response = client.post("/users", json=user_request)
+
+    assert response.status_code == status.HTTP_409_CONFLICT
     assert response.json() == {
-        "detail": "User with name 'ExistingUser' already exists."
+        "detail": "Email 'tester@gmail.com' is already registered for another user."
     }

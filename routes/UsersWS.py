@@ -20,6 +20,8 @@ async def list_users(
     id: Optional[int] = Query(None, description="Filter by user ID"),
     name: Optional[str] = Query(None, description="Filter by user name"),
     email: Optional[str] = Query(None, description="Filter by user email"),
+    page: int = Query(1, ge=1, description="Page number, starting from 1"),
+    limit: int = Query(10, le=100, description="Number of items per page, max 100"),
 ):
     query = db.query(Users)
 
@@ -30,7 +32,16 @@ async def list_users(
     if email:
         query = query.filter(Users.email.ilike(f"%{email}%"))
 
-    return {"users": query.all()}
+    total_items = query.count()
+    users = query.offset((page - 1) * limit).limit(limit).all()
+
+    return {
+        "page": page,
+        "limit": limit,
+        "total_items": total_items,
+        "total_pages": (total_items + limit - 1) // limit,
+        "users": users,
+    }
 
 
 @users_router.post(
@@ -42,7 +53,9 @@ async def create_user(db: db_dependency, user_request: UserRequest):
     )
 
     if user_exisists:
-        logger.info(f"Conflict: User name '{user_request.name}' already exists. Conflict exception raised.")
+        logger.info(
+            f"Conflict: User name '{user_request.name}' already exists. Conflict exception raised."
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"User with name '{user_request.name}' already exists.",
@@ -53,7 +66,9 @@ async def create_user(db: db_dependency, user_request: UserRequest):
     )
 
     if email_exisists:
-        logger.info(f"Conflict: User email '{user_request.email} already exists. Conflict exception raised.")
+        logger.info(
+            f"Conflict: User email '{user_request.email} already exists. Conflict exception raised."
+        )
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail=f"Email '{user_request.email}' is already registered for another user.",
