@@ -53,7 +53,7 @@ def test_create_user_success(mock_db: MagicMock):
     mock_db.commit.return_value = None
     mock_db.refresh.return_value = None
 
-    user_request = {"name": "NewUser", "email": "newuser@test.com"}
+    user_request = {"name": "NewUser", "email": "newuser@test.com", "password": "password"}
 
     response = client.post("/users", json=user_request)
 
@@ -67,7 +67,7 @@ def test_create_user_conflict_name(mock_db: MagicMock):
         id=1, name="ExistingUser", email="existing@test.com"
     )
 
-    user_request = {"name": "ExistingUser", "email": "newuser@test.com"}
+    user_request = {"name": "ExistingUser", "email": "newuser@test.com", "password": "password"}
 
     response = client.post("/users", json=user_request)
 
@@ -76,7 +76,7 @@ def test_create_user_conflict_name(mock_db: MagicMock):
 
 
 def test_create_user_conflict_email(mock_db):
-    user_request = {"name": "Tester", "email": "tester@gmail.com"}
+    user_request = {"name": "Tester", "email": "tester@gmail.com", "password": "password"}
 
     mock_db.query.return_value.filter.return_value.first.side_effect = [
         None,

@@ -1,5 +1,5 @@
 from typing import Optional
-from fastapi import Depends, HTTPException, APIRouter, Query
+from fastapi import HTTPException, APIRouter, Query
 from sqlalchemy import Date, cast
 import logging
 from database.database import db_dependency
@@ -19,8 +19,8 @@ logger: logging.Logger = setup_logger(__name__)
 @rooms_router.get("", responses=ws_responses["rooms_get"])
 async def list_rooms(
     db: db_dependency,
-    id: Optional[int] = Query(None, description="Filter by user ID"),
-    name: Optional[str] = Query(None, description="Filter by user name"),
+    id: Optional[int] = Query(None, description="Filter by room ID"),
+    name: Optional[str] = Query(None, description="Filter by room name"),
     location: Optional[str] = Query(None, description="Filter by room location"),
     capacity: Optional[int] = Query(None, description="Filter by room capacity"),
     creator_id: Optional[int] = Query(
